@@ -27,7 +27,8 @@ button{font-size:16px;padding:10px 20px;margin:6px;}
 
 <br>
 
-<button onclick="startWithSound()">シナリオ開始</button>
+<!-- ユーザー操作で音再生開始 -->
+<button onclick="startWithSound()">シナリオ開始（音あり）</button>
 <br>
 <button onclick="action('atropine')">アトロピン</button>
 <button onclick="action('nitro')">ニトロ</button>
@@ -100,19 +101,24 @@ function action(a){
 
 function restart(){document.getElementById("log").innerText=""; startScenario();}
 
-// 音再生（ボタン操作後に呼び出す）
+// 音再生（ユーザー操作後に呼び出す）
 function monitorBeep(){
     if(solved) return;
-    // ECGビープ
-    let b=new Audio("beep.mp3"); b.play();
-    // SpO2トーン
-    let s=new Audio("spo2.mp3"); s.play();
+    let b=new Audio("beep.mp3"); b.play().catch(err=>console.log(err));
+    let s=new Audio("spo2.mp3"); s.play().catch(err=>console.log(err));
     let interval=60000/HR;
     setTimeout(monitorBeep,interval);
 }
 
-function toggleVent(){ ventOn ? vent.pause() : (vent=new Audio("vent.mp3"), vent.loop=true, vent.play()); ventOn=!ventOn; }
-function toggleECMO(){ ecmoOn ? ecmo.pause() : (ecmo=new Audio("ecmo.mp3"), ecmo.loop=true, ecmo.play()); ecmoOn=!ecmoOn; }
+// 呼吸器・ECMOトグル
+function toggleVent(){ 
+    if(!ventOn){ vent=new Audio("vent.mp3"); vent.loop=true; vent.play().catch(err=>console.log(err)); ventOn=true; }
+    else{ vent.pause(); ventOn=false; }
+}
+function toggleECMO(){ 
+    if(!ecmoOn){ ecmo=new Audio("ecmo.mp3"); ecmo.loop=true; ecmo.play().catch(err=>console.log(err)); ecmoOn=true; }
+    else{ ecmo.pause(); ecmoOn=false; }
+}
 
 // Grid描画
 function drawGrid(ctx){
@@ -150,7 +156,6 @@ function artWave(t){
     let notch=-Math.exp(-Math.pow((t-0.5)/0.02,2))*8;
     return up+notch;
 }
-
 function drawART(){
     artCtx.fillStyle="#001000"; artCtx.fillRect(0,0,700,120);
     drawGrid(artCtx); artCtx.strokeStyle="red"; artCtx.lineWidth=2; artCtx.beginPath();
@@ -175,7 +180,7 @@ function drawRESP(){
     respCtx.stroke();
 }
 
-// SpO2プレチス波
+// SpO2波形
 function drawSPO2(){
     spo2Ctx.fillStyle="#001000"; spo2Ctx.fillRect(0,0,700,120);
     drawGrid(spo2Ctx); spo2Ctx.strokeStyle="cyan"; spo2Ctx.lineWidth=2; spo2Ctx.beginPath();
@@ -191,9 +196,13 @@ function drawSPO2(){
 // アニメーション
 function animate(){ x+=4; drawECG(); drawART(); drawRESP(); drawSPO2(); requestAnimationFrame(animate); }
 
-// 「シナリオ開始」ボタンで初めて音再生開始
-function startWithSound(){ startScenario(); monitorBeep(); animate(); setInterval(worsen,4000); }
-
+// シナリオ開始（ユーザー操作後に音再生）
+function startWithSound(){ 
+    startScenario(); 
+    monitorBeep(); 
+    animate(); 
+    setInterval(worsen,4000);
+}
 </script>
 </body>
 </html>
