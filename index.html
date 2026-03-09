@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>カテ室AIモニター</title>
+<title>カテ室モニターシミュレーター</title>
 
 <style>
 
@@ -25,26 +25,27 @@ padding:20px;
 
 canvas{
 background:#001000;
-border:2px solid #006600;
+border:2px solid #008800;
 margin:5px;
 }
 
 .big{
 font-size:28px;
-margin:15px;
+margin:10px;
 }
 
-.alarm{
-color:red;
-font-weight:bold;
+input{
+width:70px;
+font-size:18px;
 }
 
 button{
 font-size:16px;
-margin:5px;
+margin:4px;
 }
 
 </style>
+
 </head>
 
 <body>
@@ -64,19 +65,21 @@ margin:5px;
 
 <div class="big">AP<br><span id="bpv">120/70</span></div>
 
-<div class="big">SpO2<br><span id="spv">98</span></div>
+<div class="big">SpO₂<br><span id="spv">98</span></div>
 
-<div class="big">ECMO Flow<br><span id="ef">4500</span></div>
+<hr>
 
-<div class="big">Vent Flow<br><span id="vf">3.5</span></div>
-
-<div id="alarm"></div>
-
+HR<input id="hr">
 <br>
+SYS<input id="sys">
+<br>
+DIA<input id="dia">
+<br>
+SpO2<input id="spo">
 
-<button onclick="start()">開始</button>
-<button onclick="toggleVent()">呼吸器</button>
-<button onclick="toggleECMO()">ECMO</button>
+<br><br>
+
+<button onclick="apply()">反映</button>
 
 </div>
 
@@ -87,114 +90,24 @@ let SYS=120
 let DIA=70
 let SPO2=98
 
-let ecmoFlow=4500
-let ventFlow=3.5
-
-let ventOn=false
-let ecmoOn=false
-
 let x=0
 
-let audioCtx
+function apply(){
 
-function beep(freq,dur){
+HR=parseFloat(document.getElementById("hr").value)
+SYS=parseFloat(document.getElementById("sys").value)
+DIA=parseFloat(document.getElementById("dia").value)
+SPO2=parseFloat(document.getElementById("spo").value)
 
-if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)()
-
-let osc=audioCtx.createOscillator()
-
-osc.frequency.value=freq
-osc.connect(audioCtx.destination)
-
-osc.start()
-
-osc.stop(audioCtx.currentTime+dur)
-
-}
-
-function monitorSound(){
-
-beep(900,0.05)
-
-setTimeout(monitorSound,60000/HR)
+updatePanel()
 
 }
 
 function updatePanel(){
 
 hrv.innerText=Math.round(HR)
-
 bpv.innerText=Math.round(SYS)+"/"+Math.round(DIA)
-
 spv.innerText=Math.round(SPO2)
-
-ef.innerText=Math.round(ecmoFlow)
-
-vf.innerText=ventFlow.toFixed(1)
-
-}
-
-function worsen(){
-
-HR+=Math.random()*2
-
-SYS-=Math.random()*2
-
-SPO2-=Math.random()*0.4
-
-ecmoFlow-=Math.random()*40
-
-ventFlow-=Math.random()*0.05
-
-alarm.innerHTML=""
-
-if(SPO2<90){
-
-alarm.innerHTML+="<div class='alarm'>SpO2 LOW</div>"
-
-beep(600,0.2)
-
-}
-
-if(ventFlow<2){
-
-alarm.innerHTML+="<div class='alarm'>VENT FLOW LOW</div>"
-
-beep(700,0.2)
-
-}
-
-if(ecmoFlow<3500){
-
-alarm.innerHTML+="<div class='alarm'>ECMO FLOW LOW</div>"
-
-beep(500,0.2)
-
-}
-
-updatePanel()
-
-}
-
-function toggleVent(){
-
-ventOn=!ventOn
-
-}
-
-function toggleECMO(){
-
-ecmoOn=!ecmoOn
-
-}
-
-function start(){
-
-monitorSound()
-
-setInterval(worsen,3000)
-
-animate()
 
 }
 
@@ -218,11 +131,9 @@ return p+q+r+s+tw
 function drawECG(){
 
 ecg.fillStyle="#001000"
-
 ecg.fillRect(0,0,800,120)
 
 ecg.strokeStyle="#00ff66"
-
 ecg.beginPath()
 
 let beat=60000/HR
@@ -244,16 +155,16 @@ ecg.stroke()
 function drawART(){
 
 art.fillStyle="#001000"
-
 art.fillRect(0,0,800,120)
 
 art.strokeStyle="red"
-
 art.beginPath()
+
+let amp=SYS/120
 
 for(let i=0;i<800;i++){
 
-let y=70+Math.sin((i+x)/20)*30*(SYS/120)
+let y=80+Math.sin((i+x)/20)*30*amp
 
 art.lineTo(i,y)
 
@@ -266,11 +177,9 @@ art.stroke()
 function drawRESP(){
 
 resp.fillStyle="#001000"
-
 resp.fillRect(0,0,800,120)
 
 resp.strokeStyle="yellow"
-
 resp.beginPath()
 
 for(let i=0;i<800;i++){
@@ -288,16 +197,16 @@ resp.stroke()
 function drawSPO(){
 
 spo.fillStyle="#001000"
-
 spo.fillRect(0,0,800,120)
 
 spo.strokeStyle="cyan"
-
 spo.beginPath()
 
 for(let i=0;i<800;i++){
 
-let y=80+Math.sin((i+x)/18)*20
+let amp=SPO2/100
+
+let y=80+Math.sin((i+x)/18)*20*amp
 
 spo.lineTo(i,y)
 
@@ -321,6 +230,8 @@ requestAnimationFrame(animate)
 }
 
 updatePanel()
+
+animate()
 
 </script>
 
