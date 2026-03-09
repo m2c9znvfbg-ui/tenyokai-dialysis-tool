@@ -3,13 +3,14 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Polygraph Simulator</title>
+<title>Fukuda Polygraph Simulator</title>
 
 <style>
+
 body{
 background:black;
-color:#00ff66;
 font-family:monospace;
+color:#00ff66;
 }
 
 #container{
@@ -27,16 +28,33 @@ border-bottom:1px solid #003300;
 
 #panel{
 padding-left:20px;
+width:200px;
 }
 
 .hr{
-font-size:80px;
+font-size:90px;
+color:#00ff66;
 font-weight:bold;
 }
 
-.value{
+.label{
+font-size:18px;
+margin-top:10px;
+}
+
+.nibp{
+color:white;
 font-size:30px;
-margin-top:20px;
+}
+
+.art{
+color:#ff3333;
+font-size:30px;
+}
+
+.spo2{
+color:yellow;
+font-size:30px;
 }
 
 input{
@@ -44,7 +62,16 @@ width:60px;
 background:black;
 color:#00ff66;
 border:1px solid #00ff66;
+margin-bottom:4px;
 }
+
+button{
+background:#002200;
+color:#00ff66;
+border:1px solid #00ff66;
+margin-top:5px;
+}
+
 </style>
 </head>
 
@@ -61,18 +88,21 @@ border:1px solid #00ff66;
 
 <div id="panel">
 
-<div class="hr">
-<span id="hrv">80</span>
-</div>
-HR
+<div class="hr" id="hrv">80</div>
+<div class="label">HR</div>
 
-<div class="value">
-NIBP<br>
+<div class="label">NIBP</div>
+<div class="nibp">
 <span id="sysv">120</span>/<span id="diav">70</span>
 </div>
 
-<div class="value">
-SpO₂<br>
+<div class="label">A圧</div>
+<div class="art">
+<span id="artsys">120</span>/<span id="artdia">70</span>
+</div>
+
+<div class="label">SpO₂</div>
+<div class="spo2">
 <span id="spo2v">98</span>
 </div>
 
@@ -117,14 +147,16 @@ audioCtx=new(window.AudioContext||window.webkitAudioContext)()
 let osc=audioCtx.createOscillator()
 let gain=audioCtx.createGain()
 
-osc.frequency.value=900
+osc.type="square"
+osc.frequency.value=1100
+
 gain.gain.value=0.05
 
 osc.connect(gain)
 gain.connect(audioCtx.destination)
 
 osc.start()
-setTimeout(()=>osc.stop(),40)
+setTimeout(()=>osc.stop(),30)
 
 }
 
@@ -134,6 +166,7 @@ ecgctx.fillStyle="black"
 ecgctx.fillRect(0,0,900,250)
 
 ecgctx.strokeStyle="#00ff00"
+ecgctx.lineWidth=2
 ecgctx.beginPath()
 
 for(let i=0;i<900;i++){
@@ -141,12 +174,14 @@ for(let i=0;i<900;i++){
 let t=(i+x)/40
 let y=120
 
-if(Math.sin(t*HR/60*6)>0.95){
+if(Math.sin(t*HR/60*6)>0.97){
+
 y=60
 beep()
+
 }
 
-y+=Math.sin(t*2)*5
+y+=Math.sin(t*2)*3
 
 ecgctx.lineTo(i,y)
 
@@ -161,7 +196,8 @@ function drawART(){
 artctx.fillStyle="black"
 artctx.fillRect(0,0,900,200)
 
-artctx.strokeStyle="#ff4444"
+artctx.strokeStyle="#ff3333"
+artctx.lineWidth=2
 artctx.beginPath()
 
 for(let i=0;i<900;i++){
@@ -189,7 +225,7 @@ if(!running)return
 drawECG()
 drawART()
 
-x+=2
+x+=1.5   // 約50mm/sec相当
 
 requestAnimationFrame(loop)
 
@@ -212,6 +248,10 @@ SPO2=parseFloat(document.getElementById("spo2").value)
 document.getElementById("hrv").innerText=HR
 document.getElementById("sysv").innerText=SYS
 document.getElementById("diav").innerText=DIA
+
+document.getElementById("artsys").innerText=SYS
+document.getElementById("artdia").innerText=DIA
+
 document.getElementById("spo2v").innerText=SPO2
 
 }
