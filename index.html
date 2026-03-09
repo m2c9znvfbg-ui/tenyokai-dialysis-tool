@@ -3,21 +3,20 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Fukuda Polygraph Simulator</title>
+<title>Polygraph Simulator</title>
 
 <style>
 
 body{
 background:black;
 font-family:monospace;
-color:#00ff66;
 }
 
 #container{
 display:flex;
 }
 
-#waves{
+#waveArea{
 width:900px;
 }
 
@@ -28,7 +27,6 @@ border-bottom:1px solid #003300;
 
 #panel{
 padding-left:20px;
-width:200px;
 }
 
 .hr{
@@ -37,24 +35,19 @@ color:#00ff66;
 font-weight:bold;
 }
 
-.label{
-font-size:18px;
-margin-top:10px;
-}
-
 .nibp{
 color:white;
-font-size:30px;
+font-size:28px;
 }
 
 .art{
-color:#ff3333;
-font-size:30px;
+color:red;
+font-size:28px;
 }
 
 .spo2{
 color:yellow;
-font-size:30px;
+font-size:28px;
 }
 
 input{
@@ -62,14 +55,15 @@ width:60px;
 background:black;
 color:#00ff66;
 border:1px solid #00ff66;
-margin-bottom:4px;
+margin:2px;
 }
 
 button{
 background:#002200;
 color:#00ff66;
 border:1px solid #00ff66;
-margin-top:5px;
+margin-top:6px;
+margin-right:4px;
 }
 
 </style>
@@ -79,7 +73,7 @@ margin-top:5px;
 
 <div id="container">
 
-<div id="waves">
+<div id="waveArea">
 
 <canvas id="ecg" width="900" height="250"></canvas>
 <canvas id="art" width="900" height="200"></canvas>
@@ -88,32 +82,51 @@ margin-top:5px;
 
 <div id="panel">
 
-<div class="hr" id="hrv">80</div>
-<div class="label">HR</div>
+<div class="hr" id="hrDisplay">80</div>
+HR
 
-<div class="label">NIBP</div>
 <div class="nibp">
-<span id="sysv">120</span>/<span id="diav">70</span>
+NIBP<br>
+<span id="nSys">120</span>/<span id="nDia">70</span>
 </div>
 
-<div class="label">A圧</div>
 <div class="art">
-<span id="artsys">120</span>/<span id="artdia">70</span>
+A圧<br>
+<span id="aSys">120</span>/<span id="aDia">70</span>
 </div>
 
-<div class="label">SpO₂</div>
 <div class="spo2">
-<span id="spo2v">98</span>
+SpO₂<br>
+<span id="spo2">98</span>
 </div>
 
-<br>
+<hr>
 
-HR<input id="hr" value="80"><br>
-SYS<input id="sys" value="120"><br>
-DIA<input id="dia" value="70"><br>
-SPO2<input id="spo2" value="98"><br>
+HR <input id="hrIn" value="80"><br>
+
+NIBP
+<input id="nSysIn" value="120"> /
+<input id="nDiaIn" value="70"><br>
+
+A圧
+<input id="aSysIn" value="120"> /
+<input id="aDiaIn" value="70"><br>
+
+SpO₂
+<input id="spo2In" value="98"><br>
 
 <button onclick="apply()">反映</button>
+
+<hr>
+
+紙送り速度<br>
+
+<button onclick="setSpeed(0.8)">25 mm/s</button>
+<button onclick="setSpeed(1.6)">50 mm/s</button>
+<button onclick="setSpeed(3.2)">100 mm/s</button>
+
+<hr>
+
 <button onclick="start()">START</button>
 
 </div>
@@ -123,32 +136,29 @@ SPO2<input id="spo2" value="98"><br>
 <script>
 
 let HR=80
-let SYS=120
-let DIA=70
+let nSys=120
+let nDia=70
+let aSys=120
+let aDia=70
 let SPO2=98
+
+let speed=1.6
 
 let x=0
 let running=false
 
-const ecg=document.getElementById("ecg")
-const ecgctx=ecg.getContext("2d")
-
-const art=document.getElementById("art")
-const artctx=art.getContext("2d")
+const ecg=document.getElementById("ecg").getContext("2d")
+const art=document.getElementById("art").getContext("2d")
 
 let audioCtx
 
 function beep(){
 
-if(!audioCtx){
-audioCtx=new(window.AudioContext||window.webkitAudioContext)()
-}
-
 let osc=audioCtx.createOscillator()
 let gain=audioCtx.createGain()
 
+osc.frequency.value=1000
 osc.type="square"
-osc.frequency.value=1100
 
 gain.gain.value=0.05
 
@@ -156,25 +166,25 @@ osc.connect(gain)
 gain.connect(audioCtx.destination)
 
 osc.start()
-setTimeout(()=>osc.stop(),30)
+setTimeout(()=>osc.stop(),40)
 
 }
 
 function drawECG(){
 
-ecgctx.fillStyle="black"
-ecgctx.fillRect(0,0,900,250)
+ecg.fillStyle="black"
+ecg.fillRect(0,0,900,250)
 
-ecgctx.strokeStyle="#00ff00"
-ecgctx.lineWidth=2
-ecgctx.beginPath()
+ecg.strokeStyle="#00ff00"
+ecg.beginPath()
 
 for(let i=0;i<900;i++){
 
 let t=(i+x)/40
+
 let y=120
 
-if(Math.sin(t*HR/60*6)>0.97){
+if(Math.sin(t*HR/60*6)>0.98){
 
 y=60
 beep()
@@ -183,38 +193,37 @@ beep()
 
 y+=Math.sin(t*2)*3
 
-ecgctx.lineTo(i,y)
+ecg.lineTo(i,y)
 
 }
 
-ecgctx.stroke()
+ecg.stroke()
 
 }
 
 function drawART(){
 
-artctx.fillStyle="black"
-artctx.fillRect(0,0,900,200)
+art.fillStyle="black"
+art.fillRect(0,0,900,200)
 
-artctx.strokeStyle="#ff3333"
-artctx.lineWidth=2
-artctx.beginPath()
+art.strokeStyle="red"
+art.beginPath()
 
 for(let i=0;i<900;i++){
 
 let t=(i+x)/40
 
 let pressure=
-DIA+
-(Math.sin(t*HR/60*6)+1)/2*(SYS-DIA)
+aDia+
+(Math.sin(t*HR/60*6)+1)/2*(aSys-aDia)
 
 let y=180-pressure
 
-artctx.lineTo(i,y)
+art.lineTo(i,y)
 
 }
 
-artctx.stroke()
+art.stroke()
 
 }
 
@@ -225,13 +234,15 @@ if(!running)return
 drawECG()
 drawART()
 
-x+=1.5   // 約50mm/sec相当
+x+=speed
 
 requestAnimationFrame(loop)
 
 }
 
 function start(){
+
+audioCtx=new(window.AudioContext||window.webkitAudioContext)()
 
 running=true
 loop()
@@ -240,19 +251,31 @@ loop()
 
 function apply(){
 
-HR=parseFloat(document.getElementById("hr").value)
-SYS=parseFloat(document.getElementById("sys").value)
-DIA=parseFloat(document.getElementById("dia").value)
-SPO2=parseFloat(document.getElementById("spo2").value)
+HR=parseFloat(hrIn.value)
 
-document.getElementById("hrv").innerText=HR
-document.getElementById("sysv").innerText=SYS
-document.getElementById("diav").innerText=DIA
+nSys=parseFloat(nSysIn.value)
+nDia=parseFloat(nDiaIn.value)
 
-document.getElementById("artsys").innerText=SYS
-document.getElementById("artdia").innerText=DIA
+aSys=parseFloat(aSysIn.value)
+aDia=parseFloat(aDiaIn.value)
 
-document.getElementById("spo2v").innerText=SPO2
+SPO2=parseFloat(spo2In.value)
+
+hrDisplay.innerText=HR
+
+nSys.innerText=nSys
+nDia.innerText=nDia
+
+aSys.innerText=aSys
+aDia.innerText=aDia
+
+spo2.innerText=SPO2
+
+}
+
+function setSpeed(v){
+
+speed=v
 
 }
 
