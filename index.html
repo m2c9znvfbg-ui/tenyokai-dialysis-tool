@@ -1,24 +1,52 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>カテ室シミュレーター（入力対応版）</title>
+<title>カテ室 AIシミュレーター</title>
+
 <style>
-body{background:black;color:#00ff66;font-family:monospace;text-align:center;}
-h1{color:white;}
-.monitor{font-size:26px;margin:10px;}
-canvas{background:#001000;border:2px solid #00aa44;margin:6px;}
-button{font-size:16px;padding:10px 20px;margin:6px;}
-input{width:60px;font-size:16px;text-align:center;margin:4px;}
-#scenario{color:yellow;}
-#log{color:white;margin-top:10px;}
+body{
+background:black;
+color:#00ff66;
+font-family:monospace;
+text-align:center;
+}
+
+canvas{
+background:#001000;
+border:2px solid #008844;
+margin:5px;
+}
+
+.monitor{
+font-size:24px;
+margin:10px;
+}
+
+input{
+width:60px;
+font-size:16px;
+}
+
+button{
+font-size:16px;
+margin:4px;
+padding:6px 12px;
+}
+
+.alarm{
+color:red;
+font-weight:bold;
+}
+
 </style>
 </head>
+
 <body>
 
-<h1>カテ室シミュレーター（値入力対応）</h1>
+<h2>カテ室 AIシミュレーター</h2>
 
-<div id="scenario"></div>
 <div class="monitor" id="numbers"></div>
 
 <canvas id="ecg" width="700" height="120"></canvas>
@@ -28,233 +56,258 @@ input{width:60px;font-size:16px;text-align:center;margin:4px;}
 
 <br>
 
-<!-- ユーザー入力 -->
-HR: <input id="inputHR" type="number" value="80"> 
-SYS: <input id="inputSYS" type="number" value="120"> 
-DIA: <input id="inputDIA" type="number" value="70"> 
-SpO2: <input id="inputSPO2" type="number" value="98"> 
-<button onclick="applyValues()">反映</button>
+HR<input id="hr" type="number" value="80">
+SYS<input id="sys" type="number" value="120">
+DIA<input id="dia" type="number" value="70">
+SpO2<input id="spo" type="number" value="98">
+
+<button onclick="apply()">反映</button>
+
+<br><br>
+
+<button onclick="start()">開始</button>
+
+<button onclick="toggleVent()">呼吸器</button>
+<button onclick="toggleECMO()">ECMO</button>
+
 <br>
 
-<button onclick="startWithSound()">シナリオ開始（音あり）</button>
-<br>
-<button onclick="action('atropine')">アトロピン</button>
-<button onclick="action('nitro')">ニトロ</button>
-<button onclick="action('echo')">エコー</button>
-<button onclick="action('defib')">除細動</button>
-<button onclick="action('report')">医師報告</button>
-<br>
-<button onclick="toggleVent()">呼吸器（オキシログ）</button>
-<button onclick="toggleECMO()">ECMO（キャピオックス）</button>
-<br><br>
-<button onclick="restart()">新しい症例</button>
-<p id="log"></p>
+<div id="alarm"></div>
 
 <script>
-// 生理値
-let HR,SYS,DIA,SPO2;
-let scenario,solved=false,startTime;
-let x=0;
 
-// Canvas
-let ecgCanvas=document.getElementById("ecg"),ecgCtx=ecgCanvas.getContext("2d");
-let artCanvas=document.getElementById("art"),artCtx=artCanvas.getContext("2d");
-let respCanvas=document.getElementById("resp"),respCtx=respCanvas.getContext("2d");
-let spo2Canvas=document.getElementById("spo2"),spo2Ctx=spo2Canvas.getContext("2d");
+let HR=80
+let SYS=120
+let DIA=70
+let SPO2=98
 
-// 音声管理
-let ventOn=false, ecmoOn=false;
-let audioCtx=null;
+let ventOn=false
+let ecmoOn=false
 
-// シナリオ
-let scenarios=[
-{name:"迷走神経反射",init:function(){HR=80;SYS=120;DIA=70;SPO2=98;},correct:"atropine",worsen:function(){HR-=6;SYS-=8;}},
-{name:"slow flow",init:function(){HR=85;SYS=110;DIA=65;SPO2=97;},correct:"nitro",worsen:function(){SYS-=6;SPO2-=1;}},
-{name:"心タンポナーデ",init:function(){HR=95;SYS=105;DIA=70;SPO2=96;},correct:"echo",worsen:function(){HR+=4;SYS-=10;}},
-{name:"心室細動",init:function(){HR=160;SYS=70;DIA=40;SPO2=85;},correct:"defib",worsen:function(){SYS-=6;SPO2-=3;}}
-];
+let ventFlow=3.5
+let ecmoFlow=4500
 
-function startScenario(){
-    scenario=scenarios[Math.floor(Math.random()*scenarios.length)];
-    scenario.init();
-    document.getElementById("scenario").innerText="イベント: "+scenario.name;
-    startTime=Date.now();
-    solved=false;
-    updateNumbers();
-    // 入力欄に反映
-    document.getElementById("inputHR").value=HR;
-    document.getElementById("inputSYS").value=SYS;
-    document.getElementById("inputDIA").value=DIA;
-    document.getElementById("inputSPO2").value=SPO2;
+let x=0
+
+let audioCtx
+
+function beep(freq,dur){
+
+if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)()
+
+let osc=audioCtx.createOscillator()
+
+osc.type="square"
+osc.frequency.setValueAtTime(freq,audioCtx.currentTime)
+
+osc.connect(audioCtx.destination)
+
+osc.start()
+
+osc.stop(audioCtx.currentTime+dur)
+
+}
+
+function monitorSound(){
+
+beep(900,0.05)
+
+setTimeout(monitorSound,60000/HR)
+
+}
+
+function apply(){
+
+HR=parseInt(hr.value)
+SYS=parseInt(sys.value)
+DIA=parseInt(dia.value)
+SPO2=parseInt(spo.value)
+
 }
 
 function updateNumbers(){
-    document.getElementById("numbers").innerHTML=
-    "HR <span style='color:#00ff66'>"+HR+"</span> bpm | "+
-    "A圧 <span style='color:red'>"+SYS+"/"+DIA+"</span> | "+
-    "SpO2 <span style='color:cyan'>"+SPO2+"</span>";
+
+numbers.innerHTML=
+"HR "+HR+
+" | BP "+SYS+"/"+DIA+
+" | SpO2 "+SPO2+
+" | VentFlow "+ventFlow.toFixed(1)+"L"+
+" | ECMO "+ecmoFlow+"ml"
+
 }
 
 function worsen(){
-    if(solved) return;
-    scenario.worsen();
-    if(SYS<50 || SPO2<70){document.getElementById("log").innerText="ショック状態";solved=true;}
-    updateNumbers();
+
+HR+=Math.random()*2
+
+SYS-=Math.random()*3
+
+SPO2-=Math.random()*0.5
+
+ventFlow-=Math.random()*0.1
+
+ecmoFlow-=Math.random()*50
+
+if(SPO2<90){
+
+alarm.innerHTML="<span class='alarm'>SpO2 LOW</span>"
+
+beep(600,0.2)
+
 }
 
-function action(a){
-    if(solved) return;
-    if(a==scenario.correct){
-        let time=((Date.now()-startTime)/1000).toFixed(1);
-        document.getElementById("log").innerText="対応成功 判断時間 "+time+" 秒";
-        solved=true;
-    }else{
-        document.getElementById("log").innerText="効果なし";
-    }
+if(ventFlow<2){
+
+alarm.innerHTML+="<br><span class='alarm'>VENT FLOW LOW</span>"
+
+beep(700,0.2)
+
 }
 
-function restart(){document.getElementById("log").innerText=""; startScenario();}
+if(ecmoFlow<3500){
 
-// ユーザー入力値を反映
-function applyValues(){
-    HR=parseInt(document.getElementById("inputHR").value)||HR;
-    SYS=parseInt(document.getElementById("inputSYS").value)||SYS;
-    DIA=parseInt(document.getElementById("inputDIA").value)||DIA;
-    SPO2=parseInt(document.getElementById("inputSPO2").value)||SPO2;
-    updateNumbers();
+alarm.innerHTML+="<br><span class='alarm'>ECMO FLOW LOW</span>"
+
+beep(500,0.3)
+
 }
 
-// 音生成（Web Audio API）
-function playBeep(freq=800,duration=0.1){
-    if(!audioCtx) audioCtx=new (window.AudioContext || window.webkitAudioContext)();
-    let osc=audioCtx.createOscillator();
-    osc.type="square";
-    osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
-    osc.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime+duration);
+updateNumbers()
+
 }
 
-function monitorBeep(){
-    if(solved) return;
-    playBeep(800,0.1); // ECGビープ
-    playBeep(1200,0.05); // SpO2音
-    let interval=60000/HR;
-    setTimeout(monitorBeep,interval);
-}
-
-// 呼吸器・ECMO音（低周波ループ）
-let ventOsc=null, ecmoOsc=null;
 function toggleVent(){
-    if(!ventOn){
-        if(!audioCtx) audioCtx=new (window.AudioContext || window.webkitAudioContext)();
-        ventOsc=audioCtx.createOscillator();
-        ventOsc.type="sine";
-        ventOsc.frequency.setValueAtTime(50,audioCtx.currentTime);
-        ventOsc.connect(audioCtx.destination);
-        ventOsc.start();
-        ventOn=true;
-    } else {
-        ventOsc.stop();
-        ventOsc.disconnect();
-        ventOn=false;
-    }
+
+ventOn=!ventOn
+
 }
 
 function toggleECMO(){
-    if(!ecmoOn){
-        if(!audioCtx) audioCtx=new (window.AudioContext || window.webkitAudioContext)();
-        ecmoOsc=audioCtx.createOscillator();
-        ecmoOsc.type="sine";
-        ecmoOsc.frequency.setValueAtTime(30,audioCtx.currentTime);
-        ecmoOsc.connect(audioCtx.destination);
-        ecmoOsc.start();
-        ecmoOn=true;
-    } else {
-        ecmoOsc.stop();
-        ecmoOsc.disconnect();
-        ecmoOn=false;
-    }
+
+ecmoOn=!ecmoOn
+
 }
 
-// Grid描画
-function drawGrid(ctx){
-    ctx.strokeStyle="#003300"; ctx.lineWidth=0.5;
-    for(let i=0;i<700;i+=25){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,120);ctx.stroke();}
-    for(let j=0;j<120;j+=20){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(700,j);ctx.stroke();}
+function start(){
+
+monitorSound()
+
+setInterval(worsen,3000)
+
+animate()
+
 }
 
-// ECG波形
-function ecgWave(t){
-    let p=Math.exp(-Math.pow((t-0.2)/0.03,2))*3;
-    let q=-Math.exp(-Math.pow((t-0.4)/0.01,2))*6;
-    let r=Math.exp(-Math.pow((t-0.42)/0.008,2))*25;
-    let s=-Math.exp(-Math.pow((t-0.44)/0.01,2))*8;
-    let tWave=Math.exp(-Math.pow((t-0.7)/0.05,2))*6;
-    return p+q+r+s+tWave;
-}
+let ecg=document.getElementById("ecg").getContext("2d")
+let art=document.getElementById("art").getContext("2d")
+let resp=document.getElementById("resp").getContext("2d")
+let spo=document.getElementById("spo2").getContext("2d")
+
 function drawECG(){
-    ecgCtx.fillStyle="#001000"; ecgCtx.fillRect(0,0,700,120);
-    drawGrid(ecgCtx); ecgCtx.strokeStyle="#00ff66"; ecgCtx.lineWidth=2; ecgCtx.beginPath();
-    let beat=60000/HR;
-    for(let i=0;i<700;i++){
-        let t=((i+x)%beat)/beat;
-        let y=60-ecgWave(t)*2;
-        if(scenario.name=="心室細動") y=60+(Math.random()*40-20);
-        ecgCtx.lineTo(i,y);
-    }
-    ecgCtx.stroke();
+
+ecg.fillStyle="#001000"
+
+ecg.fillRect(0,0,700,120)
+
+ecg.strokeStyle="#00ff66"
+
+ecg.beginPath()
+
+for(let i=0;i<700;i++){
+
+let y=60+Math.sin((i+x)/15)*20
+
+ecg.lineTo(i,y)
+
 }
 
-// ART波形
-function artWave(t){return Math.exp(-Math.pow((t-0.3)/0.05,2))*30 - Math.exp(-Math.pow((t-0.5)/0.02,2))*8;}
+ecg.stroke()
+
+}
+
 function drawART(){
-    artCtx.fillStyle="#001000"; artCtx.fillRect(0,0,700,120);
-    drawGrid(artCtx); artCtx.strokeStyle="red"; artCtx.lineWidth=2; artCtx.beginPath();
-    let beat=60000/HR;
-    for(let i=0;i<700;i++){
-        let t=((i+x)%beat)/beat;
-        let amp=(SYS/120);
-        let y=80-artWave(t)*amp;
-        artCtx.lineTo(i,y);
-    }
-    artCtx.stroke();
+
+art.fillStyle="#001000"
+
+art.fillRect(0,0,700,120)
+
+art.strokeStyle="red"
+
+art.beginPath()
+
+for(let i=0;i<700;i++){
+
+let y=80+Math.sin((i+x)/20)*30*(SYS/120)
+
+art.lineTo(i,y)
+
 }
 
-// RESP波形
+art.stroke()
+
+}
+
 function drawRESP(){
-    respCtx.fillStyle="#001000"; respCtx.fillRect(0,0,700,120);
-    drawGrid(respCtx); respCtx.strokeStyle="yellow"; respCtx.lineWidth=2; respCtx.beginPath();
-    for(let i=0;i<700;i++){
-        let y=60+Math.sin((i+x)/40)*20*(ventOn?1:0.5);
-        respCtx.lineTo(i,y);
-    }
-    respCtx.stroke();
+
+resp.fillStyle="#001000"
+
+resp.fillRect(0,0,700,120)
+
+resp.strokeStyle="yellow"
+
+resp.beginPath()
+
+for(let i=0;i<700;i++){
+
+let y=60+Math.sin((i+x)/40)*20
+
+resp.lineTo(i,y)
+
 }
 
-// SpO2波形
-function drawSPO2(){
-    spo2Ctx.fillStyle="#001000"; spo2Ctx.fillRect(0,0,700,120);
-    drawGrid(spo2Ctx); spo2Ctx.strokeStyle="cyan"; spo2Ctx.lineWidth=2; spo2Ctx.beginPath();
-    let beat=60000/HR;
-    for(let i=0;i<700;i++){
-        let t=((i+x)%beat)/beat;
-        let y=80-Math.pow(Math.sin(t*Math.PI),3)*25;
-        spo2Ctx.lineTo(i,y);
-    }
-    spo2Ctx.stroke();
+resp.stroke()
+
 }
 
-// アニメーション（半分遅く x+=2）
-function animate(){ x+=2; drawECG(); drawART(); drawRESP(); drawSPO2(); requestAnimationFrame(animate); }
+function drawSPO(){
 
-// シナリオ開始（ボタン押下で音も再生開始）
-function startWithSound(){ 
-    startScenario(); 
-    monitorBeep(); 
-    animate(); 
-    setInterval(worsen,4000);
+spo.fillStyle="#001000"
+
+spo.fillRect(0,0,700,120)
+
+spo.strokeStyle="cyan"
+
+spo.beginPath()
+
+for(let i=0;i<700;i++){
+
+let y=80+Math.sin((i+x)/18)*20
+
+spo.lineTo(i,y)
+
 }
+
+spo.stroke()
+
+}
+
+function animate(){
+
+x+=2
+
+drawECG()
+drawART()
+drawRESP()
+drawSPO()
+
+requestAnimationFrame(animate)
+
+}
+
+updateNumbers()
+
 </script>
+
 </body>
 </html>
+```
