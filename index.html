@@ -62,26 +62,24 @@ let ap=apCanvas.getContext("2d");
 
 let HR=70, NIBP_SYS=120, NIBP_DIA=70, AP_SYS=120, AP_DIA=70, SPO2=98;
 let x=0, speed=2;
-let audioCtx=null, osc=null, gain=null;
+let audioCtx=null;
 let nextBeatTime=0;
 
 function startAudio(){
     audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    osc=audioCtx.createOscillator();
-    gain=audioCtx.createGain();
-    osc.type="square";
-    osc.frequency.value=900;
-    gain.gain.value=0;
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
 }
 
 function beep(){
     if(!audioCtx) return;
-    gain.gain.cancelScheduledValues(audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0, audioCtx.currentTime+0.1);
+    let osc=audioCtx.createOscillator();
+    let gain=audioCtx.createGain();
+    osc.type="square";
+    osc.frequency.value=900;
+    gain.gain.value=0.1; // 音量
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2); // 0.2秒音を鳴らす
 }
 
 function drawECG(){
