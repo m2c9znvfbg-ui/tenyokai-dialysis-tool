@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>カテ室シミュレーター（音声対応版）</title>
+<title>カテ室シミュレーター（音源なし版）</title>
 <style>
-body{background:#000;color:#00ff66;font-family:Courier New,monospace;text-align:center;}
+body{background:black;color:#00ff66;font-family:monospace;text-align:center;}
 h1{color:white;}
 .monitor{font-size:26px;margin:10px;}
 canvas{background:#001000;border:2px solid #00aa44;margin:6px;}
@@ -15,7 +15,7 @@ button{font-size:16px;padding:10px 20px;margin:6px;}
 </head>
 <body>
 
-<h1>カテ室シミュレーター（音声対応）</h1>
+<h1>カテ室シミュレーター（音源なし版）</h1>
 
 <div id="scenario"></div>
 <div class="monitor" id="numbers"></div>
@@ -27,7 +27,6 @@ button{font-size:16px;padding:10px 20px;margin:6px;}
 
 <br>
 
-<!-- ユーザー操作で音再生開始 -->
 <button onclick="startWithSound()">シナリオ開始（音あり）</button>
 <br>
 <button onclick="action('atropine')">アトロピン</button>
@@ -54,8 +53,9 @@ let artCanvas=document.getElementById("art"),artCtx=artCanvas.getContext("2d");
 let respCanvas=document.getElementById("resp"),respCtx=respCanvas.getContext("2d");
 let spo2Canvas=document.getElementById("spo2"),spo2Ctx=spo2Canvas.getContext("2d");
 
-// 音声フラグ
+// 音声管理
 let ventOn=false, ecmoOn=false;
+let audioCtx=null;
 
 // シナリオ
 let scenarios=[
@@ -101,23 +101,57 @@ function action(a){
 
 function restart(){document.getElementById("log").innerText=""; startScenario();}
 
-// 音再生（ユーザー操作後に呼び出す）
+// 音生成（Web Audio API）
+function playBeep(freq=800,duration=0.1){
+    if(!audioCtx) audioCtx=new (window.AudioContext || window.webkitAudioContext)();
+    let osc=audioCtx.createOscillator();
+    osc.type="square";
+    osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
+    osc.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime+duration);
+}
+
 function monitorBeep(){
     if(solved) return;
-    let b=new Audio("beep.mp3"); b.play().catch(err=>console.log(err));
-    let s=new Audio("spo2.mp3"); s.play().catch(err=>console.log(err));
+    playBeep(800,0.1); // ECGビープ
+    playBeep(1200,0.05); // SpO2音
     let interval=60000/HR;
     setTimeout(monitorBeep,interval);
 }
 
-// 呼吸器・ECMOトグル
-function toggleVent(){ 
-    if(!ventOn){ vent=new Audio("vent.mp3"); vent.loop=true; vent.play().catch(err=>console.log(err)); ventOn=true; }
-    else{ vent.pause(); ventOn=false; }
+// 呼吸器・ECMO音（低周波ループ）
+let ventOsc=null, ecmoOsc=null;
+function toggleVent(){
+    if(!ventOn){
+        if(!audioCtx) audioCtx=new (window.AudioContext || window.webkitAudioContext)();
+        ventOsc=audioCtx.createOscillator();
+        ventOsc.type="sine";
+        ventOsc.frequency.setValueAtTime(50,audioCtx.currentTime);
+        ventOsc.connect(audioCtx.destination);
+        ventOsc.start();
+        ventOn=true;
+    } else {
+        ventOsc.stop();
+        ventOsc.disconnect();
+        ventOn=false;
+    }
 }
-function toggleECMO(){ 
-    if(!ecmoOn){ ecmo=new Audio("ecmo.mp3"); ecmo.loop=true; ecmo.play().catch(err=>console.log(err)); ecmoOn=true; }
-    else{ ecmo.pause(); ecmoOn=false; }
+
+function toggleECMO(){
+    if(!ecmoOn){
+        if(!audioCtx) audioCtx=new (window.AudioContext || window.webkitAudioContext)();
+        ecmoOsc=audioCtx.createOscillator();
+        ecmoOsc.type="sine";
+        ecmoOsc.frequency.setValueAtTime(30,audioCtx.currentTime);
+        ecmoOsc.connect(audioCtx.destination);
+        ecmoOsc.start();
+        ecmoOn=true;
+    } else {
+        ecmoOsc.stop();
+        ecmoOsc.disconnect();
+        ecmoOn=false;
+    }
 }
 
 // Grid描画
@@ -136,7 +170,6 @@ function ecgWave(t){
     let tWave=Math.exp(-Math.pow((t-0.7)/0.05,2))*6;
     return p+q+r+s+tWave;
 }
-
 function drawECG(){
     ecgCtx.fillStyle="#001000"; ecgCtx.fillRect(0,0,700,120);
     drawGrid(ecgCtx); ecgCtx.strokeStyle="#00ff66"; ecgCtx.lineWidth=2; ecgCtx.beginPath();
@@ -151,11 +184,7 @@ function drawECG(){
 }
 
 // ART波形
-function artWave(t){
-    let up=Math.exp(-Math.pow((t-0.3)/0.05,2))*30;
-    let notch=-Math.exp(-Math.pow((t-0.5)/0.02,2))*8;
-    return up+notch;
-}
+function artWave(t){return Math.exp(-Math.pow((t-0.3)/0.05,2))*30 - Math.exp(-Math.pow((t-0.5)/0.02,2))*8;}
 function drawART(){
     artCtx.fillStyle="#001000"; artCtx.fillRect(0,0,700,120);
     drawGrid(artCtx); artCtx.strokeStyle="red"; artCtx.lineWidth=2; artCtx.beginPath();
@@ -196,7 +225,7 @@ function drawSPO2(){
 // アニメーション
 function animate(){ x+=4; drawECG(); drawART(); drawRESP(); drawSPO2(); requestAnimationFrame(animate); }
 
-// シナリオ開始（ユーザー操作後に音再生）
+// シナリオ開始（ボタン押下で音も再生開始）
 function startWithSound(){ 
     startScenario(); 
     monitorBeep(); 
