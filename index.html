@@ -2,20 +2,21 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>カテ室シミュレーター（音源なし版）</title>
+<title>カテ室シミュレーター（入力対応版）</title>
 <style>
 body{background:black;color:#00ff66;font-family:monospace;text-align:center;}
 h1{color:white;}
 .monitor{font-size:26px;margin:10px;}
 canvas{background:#001000;border:2px solid #00aa44;margin:6px;}
 button{font-size:16px;padding:10px 20px;margin:6px;}
+input{width:60px;font-size:16px;text-align:center;margin:4px;}
 #scenario{color:yellow;}
 #log{color:white;margin-top:10px;}
 </style>
 </head>
 <body>
 
-<h1>カテ室シミュレーター（音源なし版）</h1>
+<h1>カテ室シミュレーター（値入力対応）</h1>
 
 <div id="scenario"></div>
 <div class="monitor" id="numbers"></div>
@@ -25,6 +26,14 @@ button{font-size:16px;padding:10px 20px;margin:6px;}
 <canvas id="resp" width="700" height="120"></canvas>
 <canvas id="spo2" width="700" height="120"></canvas>
 
+<br>
+
+<!-- ユーザー入力 -->
+HR: <input id="inputHR" type="number" value="80"> 
+SYS: <input id="inputSYS" type="number" value="120"> 
+DIA: <input id="inputDIA" type="number" value="70"> 
+SpO2: <input id="inputSPO2" type="number" value="98"> 
+<button onclick="applyValues()">反映</button>
 <br>
 
 <button onclick="startWithSound()">シナリオ開始（音あり）</button>
@@ -72,6 +81,11 @@ function startScenario(){
     startTime=Date.now();
     solved=false;
     updateNumbers();
+    // 入力欄に反映
+    document.getElementById("inputHR").value=HR;
+    document.getElementById("inputSYS").value=SYS;
+    document.getElementById("inputDIA").value=DIA;
+    document.getElementById("inputSPO2").value=SPO2;
 }
 
 function updateNumbers(){
@@ -100,6 +114,15 @@ function action(a){
 }
 
 function restart(){document.getElementById("log").innerText=""; startScenario();}
+
+// ユーザー入力値を反映
+function applyValues(){
+    HR=parseInt(document.getElementById("inputHR").value)||HR;
+    SYS=parseInt(document.getElementById("inputSYS").value)||SYS;
+    DIA=parseInt(document.getElementById("inputDIA").value)||DIA;
+    SPO2=parseInt(document.getElementById("inputSPO2").value)||SPO2;
+    updateNumbers();
+}
 
 // 音生成（Web Audio API）
 function playBeep(freq=800,duration=0.1){
@@ -222,8 +245,8 @@ function drawSPO2(){
     spo2Ctx.stroke();
 }
 
-// アニメーション
-function animate(){ x+=4; drawECG(); drawART(); drawRESP(); drawSPO2(); requestAnimationFrame(animate); }
+// アニメーション（半分遅く x+=2）
+function animate(){ x+=2; drawECG(); drawART(); drawRESP(); drawSPO2(); requestAnimationFrame(animate); }
 
 // シナリオ開始（ボタン押下で音も再生開始）
 function startWithSound(){ 
