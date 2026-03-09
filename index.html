@@ -1,85 +1,92 @@
 ```html
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>カテ室モニターシミュレーター</title>
+<title>Polygraph Simulator</title>
 
 <style>
-
 body{
 background:black;
 color:#00ff66;
 font-family:monospace;
+}
+
+#container{
 display:flex;
 }
 
-#wave{
-flex:3;
-}
-
-#panel{
-flex:1;
-padding:20px;
+#waves{
+width:900px;
 }
 
 canvas{
-background:#001000;
-border:2px solid #008800;
-margin:5px;
+background:black;
+border-bottom:1px solid #003300;
 }
 
-.big{
-font-size:28px;
-margin:10px;
+#panel{
+padding-left:20px;
+}
+
+.hr{
+font-size:80px;
+font-weight:bold;
+}
+
+.value{
+font-size:30px;
+margin-top:20px;
 }
 
 input{
-width:70px;
-font-size:18px;
+width:60px;
+background:black;
+color:#00ff66;
+border:1px solid #00ff66;
 }
-
-button{
-font-size:16px;
-margin:4px;
-}
-
 </style>
-
 </head>
 
 <body>
 
-<div id="wave">
+<div id="container">
 
-<canvas id="ecg" width="800" height="120"></canvas>
-<canvas id="art" width="800" height="120"></canvas>
-<canvas id="resp" width="800" height="120"></canvas>
-<canvas id="spo2wave" width="800" height="120"></canvas>
+<div id="waves">
+
+<canvas id="ecg" width="900" height="250"></canvas>
+<canvas id="art" width="900" height="200"></canvas>
 
 </div>
 
 <div id="panel">
 
-<div class="big">HR<br><span id="hrv">80</span></div>
+<div class="hr">
+<span id="hrv">80</span>
+</div>
+HR
 
-<div class="big">AP<br><span id="bpv">120/70</span></div>
+<div class="value">
+NIBP<br>
+<span id="sysv">120</span>/<span id="diav">70</span>
+</div>
 
-<div class="big">SpO₂<br><span id="spv">98</span></div>
+<div class="value">
+SpO₂<br>
+<span id="spo2v">98</span>
+</div>
 
-<hr>
-
-HR<input id="hr">
 <br>
-SYS<input id="sys">
-<br>
-DIA<input id="dia">
-<br>
-SpO2<input id="spo">
 
-<br><br>
+HR<input id="hr" value="80"><br>
+SYS<input id="sys" value="120"><br>
+DIA<input id="dia" value="70"><br>
+SPO2<input id="spo2" value="98"><br>
 
 <button onclick="apply()">反映</button>
+<button onclick="start()">START</button>
+
+</div>
 
 </div>
 
@@ -91,147 +98,123 @@ let DIA=70
 let SPO2=98
 
 let x=0
+let running=false
+
+const ecg=document.getElementById("ecg")
+const ecgctx=ecg.getContext("2d")
+
+const art=document.getElementById("art")
+const artctx=art.getContext("2d")
+
+let audioCtx
+
+function beep(){
+
+if(!audioCtx){
+audioCtx=new(window.AudioContext||window.webkitAudioContext)()
+}
+
+let osc=audioCtx.createOscillator()
+let gain=audioCtx.createGain()
+
+osc.frequency.value=900
+gain.gain.value=0.05
+
+osc.connect(gain)
+gain.connect(audioCtx.destination)
+
+osc.start()
+setTimeout(()=>osc.stop(),40)
+
+}
+
+function drawECG(){
+
+ecgctx.fillStyle="black"
+ecgctx.fillRect(0,0,900,250)
+
+ecgctx.strokeStyle="#00ff00"
+ecgctx.beginPath()
+
+for(let i=0;i<900;i++){
+
+let t=(i+x)/40
+let y=120
+
+if(Math.sin(t*HR/60*6)>0.95){
+y=60
+beep()
+}
+
+y+=Math.sin(t*2)*5
+
+ecgctx.lineTo(i,y)
+
+}
+
+ecgctx.stroke()
+
+}
+
+function drawART(){
+
+artctx.fillStyle="black"
+artctx.fillRect(0,0,900,200)
+
+artctx.strokeStyle="#ff4444"
+artctx.beginPath()
+
+for(let i=0;i<900;i++){
+
+let t=(i+x)/40
+
+let pressure=
+DIA+
+(Math.sin(t*HR/60*6)+1)/2*(SYS-DIA)
+
+let y=180-pressure
+
+artctx.lineTo(i,y)
+
+}
+
+artctx.stroke()
+
+}
+
+function loop(){
+
+if(!running)return
+
+drawECG()
+drawART()
+
+x+=2
+
+requestAnimationFrame(loop)
+
+}
+
+function start(){
+
+running=true
+loop()
+
+}
 
 function apply(){
 
 HR=parseFloat(document.getElementById("hr").value)
 SYS=parseFloat(document.getElementById("sys").value)
 DIA=parseFloat(document.getElementById("dia").value)
-SPO2=parseFloat(document.getElementById("spo").value)
+SPO2=parseFloat(document.getElementById("spo2").value)
 
-updatePanel()
-
-}
-
-function updatePanel(){
-
-hrv.innerText=Math.round(HR)
-bpv.innerText=Math.round(SYS)+"/"+Math.round(DIA)
-spv.innerText=Math.round(SPO2)
+document.getElementById("hrv").innerText=HR
+document.getElementById("sysv").innerText=SYS
+document.getElementById("diav").innerText=DIA
+document.getElementById("spo2v").innerText=SPO2
 
 }
-
-let ecg=document.getElementById("ecg").getContext("2d")
-let art=document.getElementById("art").getContext("2d")
-let resp=document.getElementById("resp").getContext("2d")
-let spo=document.getElementById("spo2wave").getContext("2d")
-
-function ecgWave(t){
-
-let p=Math.exp(-Math.pow((t-0.2)/0.03,2))*3
-let q=-Math.exp(-Math.pow((t-0.4)/0.01,2))*6
-let r=Math.exp(-Math.pow((t-0.42)/0.008,2))*25
-let s=-Math.exp(-Math.pow((t-0.44)/0.01,2))*8
-let tw=Math.exp(-Math.pow((t-0.7)/0.05,2))*6
-
-return p+q+r+s+tw
-
-}
-
-function drawECG(){
-
-ecg.fillStyle="#001000"
-ecg.fillRect(0,0,800,120)
-
-ecg.strokeStyle="#00ff66"
-ecg.beginPath()
-
-let beat=60000/HR
-
-for(let i=0;i<800;i++){
-
-let t=((i+x)%beat)/beat
-
-let y=60-ecgWave(t)*2
-
-ecg.lineTo(i,y)
-
-}
-
-ecg.stroke()
-
-}
-
-function drawART(){
-
-art.fillStyle="#001000"
-art.fillRect(0,0,800,120)
-
-art.strokeStyle="red"
-art.beginPath()
-
-let amp=SYS/120
-
-for(let i=0;i<800;i++){
-
-let y=80+Math.sin((i+x)/20)*30*amp
-
-art.lineTo(i,y)
-
-}
-
-art.stroke()
-
-}
-
-function drawRESP(){
-
-resp.fillStyle="#001000"
-resp.fillRect(0,0,800,120)
-
-resp.strokeStyle="yellow"
-resp.beginPath()
-
-for(let i=0;i<800;i++){
-
-let y=60+Math.sin((i+x)/40)*20
-
-resp.lineTo(i,y)
-
-}
-
-resp.stroke()
-
-}
-
-function drawSPO(){
-
-spo.fillStyle="#001000"
-spo.fillRect(0,0,800,120)
-
-spo.strokeStyle="cyan"
-spo.beginPath()
-
-for(let i=0;i<800;i++){
-
-let amp=SPO2/100
-
-let y=80+Math.sin((i+x)/18)*20*amp
-
-spo.lineTo(i,y)
-
-}
-
-spo.stroke()
-
-}
-
-function animate(){
-
-x+=2
-
-drawECG()
-drawART()
-drawRESP()
-drawSPO()
-
-requestAnimationFrame(animate)
-
-}
-
-updatePanel()
-
-animate()
 
 </script>
 
