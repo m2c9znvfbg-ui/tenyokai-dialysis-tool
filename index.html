@@ -3,151 +3,136 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Polygraph Simulator</title>
+<title>Polygraph Simulator - ECG同期音版</title>
 <style>
 body{background:black;color:white;font-family:monospace;}
-#container{display:flex;}
-#left{width:900px;}
-canvas{background:black;display:block;border:1px solid #222;}
-#right{margin-left:30px;}
+canvas{background:black;display:block;border:1px solid #222;margin-bottom:4px;}
+#right{color:white;margin-left:20px;float:right;width:200px;}
 #hr{font-size:80px;color:#00ff00;}
 #nibp{font-size:35px;color:white;}
 #aPress{font-size:35px;color:red;}
 #spo2{font-size:35px;color:yellow;}
-input{width:70px;}
+input{width:60px;}
 button{margin-top:5px;}
 </style>
 </head>
 <body>
-<h2>Polygraph Monitor Simulator</h2>
-<div id="container">
-<div id="left">
+<h2>Polygraph Simulator</h2>
+
 <canvas id="ecg" width="900" height="220"></canvas>
 <canvas id="ap" width="900" height="180"></canvas>
-</div>
+
 <div id="right">
 <div id="hr">HR 70</div>
 <div id="nibp">NIBP 120/70</div>
 <div id="aPress">A 120/70</div>
 <div id="spo2">SpO₂ 98</div>
 <br>
-HR <input id="hr_in" value="70"><br>
-SYS <input id="sys_in" value="120">
-DIA <input id="dia_in" value="70"><br>
-A SYS <input id="asys_in" value="120">
-A DIA <input id="adia_in" value="70"><br>
-SpO₂ <input id="spo2_in" value="98"><br>
-<button onclick="applyVitals()">反映</button>
-<br><br>
+HR<input id="hr_in" value="70"><br>
+SYS<input id="sys_in" value="120"> DIA<input id="dia_in" value="70"><br>
+A SYS<input id="asys_in" value="120"> DIA<input id="adia_in" value="70"><br>
+SpO₂<input id="spo2_in" value="98"><br>
+<button onclick="applyVitals()">反映</button><br><br>
 紙送り速度
 <button onclick="speed=2">遅い</button>
 <button onclick="speed=4">普通</button>
-<button onclick="speed=7">速い</button>
-<br><br>
-<button onclick="start()">START</button>
-</div>
+<button onclick="speed=7">速い</button><br><br>
+<button id="startBtn">START</button>
 </div>
 
 <script>
-let ecgCanvas=document.getElementById("ecg")
-let ecg=ecgCanvas.getContext("2d")
-let apCanvas=document.getElementById("ap")
-let ap=apCanvas.getContext("2d")
+let ecg=document.getElementById("ecg").getContext("2d")
+let ap=document.getElementById("ap").getContext("2d")
 
-let HR=70
-let NIBP_SYS=120
-let NIBP_DIA=70
-let AP_SYS=120
-let AP_DIA=70
-let SPO2=98
+let HR=70, NIBP_SYS=120, NIBP_DIA=70, AP_SYS=120, AP_DIA=70, SPO2=98
+let x=0, speed=2
+let audioCtx=null, nextBeatTime=0
 
-let x=0
-let speed=2
-let audioCtx=null
-let nextBeatTime=0
+document.getElementById("startBtn").addEventListener("click", ()=>{
+    if(!audioCtx){
+        audioCtx=new(window.AudioContext||window.webkitAudioContext)()
+    }
+    nextBeatTime=audioCtx.currentTime*1000
+    loop()
+})
 
 function beep(){
-  if(!audioCtx) return
-  let osc=audioCtx.createOscillator()
-  let gain=audioCtx.createGain()
-  osc.type="square"
-  osc.frequency.value=900
-  gain.gain.value=0.06
-  osc.connect(gain)
-  gain.connect(audioCtx.destination)
-  osc.start()
-  osc.stop(audioCtx.currentTime+0.05)
+    if(!audioCtx) return
+    let osc=audioCtx.createOscillator()
+    let gain=audioCtx.createGain()
+    osc.type="square"
+    osc.frequency.value=900
+    gain.gain.value=0.06
+    osc.connect(gain)
+    gain.connect(audioCtx.destination)
+    osc.start()
+    osc.stop(audioCtx.currentTime+0.05)
 }
 
 function drawECG(){
-  ecg.fillStyle="black"
-  ecg.fillRect(0,0,900,220)
-  ecg.strokeStyle="#00ff00"
-  ecg.lineWidth=2
-  ecg.beginPath()
-  for(let i=0;i<900;i++){
-    let t=(i+x)/120
-    let phase=(t*HR/60)%1
-    let y=120
-    if(phase<0.02) y=70
-    else if(phase<0.04) y=150
-    else if(phase<0.06) y=110
-    else y=120+Math.sin(t*5)*3
-    ecg.lineTo(i,y)
-  }
-  ecg.stroke()
+    ecg.fillStyle="black"
+    ecg.fillRect(0,0,900,220)
+    ecg.strokeStyle="#00ff00"
+    ecg.lineWidth=2
+    ecg.beginPath()
+    for(let i=0;i<900;i++){
+        let t=(i+x)/120
+        let phase=(t*HR/60)%1
+        let y=120
+        if(phase<0.02) y=70
+        else if(phase<0.04) y=150
+        else if(phase<0.06) y=110
+        else y=120+Math.sin(t*5)*3
+        ecg.lineTo(i,y)
+    }
+    ecg.stroke()
 }
 
 function drawAP(){
-  ap.fillStyle="black"
-  ap.fillRect(0,0,900,180)
-  ap.strokeStyle="red"
-  ap.lineWidth=2
-  ap.beginPath()
-  for(let i=0;i<900;i++){
-    let t=(i+x)/120
-    let phase=(t*HR/60)%1
-    let pressure=AP_DIA+(AP_SYS-AP_DIA)*(Math.sin(phase*Math.PI))
-    let y=160-pressure*0.5
-    ap.lineTo(i,y)
-  }
-  ap.stroke()
+    ap.fillStyle="black"
+    ap.fillRect(0,0,900,180)
+    ap.strokeStyle="red"
+    ap.lineWidth=2
+    ap.beginPath()
+    for(let i=0;i<900;i++){
+        let t=(i+x)/120
+        let phase=(t*HR/60)%1
+        let pressure=AP_DIA+(AP_SYS-AP_DIA)*(Math.sin(phase*Math.PI))
+        let y=160-pressure*0.5
+        ap.lineTo(i,y)
+    }
+    ap.stroke()
 }
 
 function loop(){
-  x+=speed
-  drawECG()
-  drawAP()
-  let now=audioCtx.currentTime*1000
-  if(now>=nextBeatTime){
-    beep()
-    nextBeatTime=now + 60000/HR
-  }
-  requestAnimationFrame(loop)
+    x+=speed
+    drawECG()
+    drawAP()
+    if(audioCtx){
+        let now=audioCtx.currentTime*1000
+        let interval=60000/HR
+        if(now>=nextBeatTime){
+            beep()
+            nextBeatTime+=interval
+        }
+    }
+    requestAnimationFrame(loop)
 }
 
 function applyVitals(){
-  HR=parseInt(hr_in.value)
-  NIBP_SYS=parseInt(sys_in.value)
-  NIBP_DIA=parseInt(dia_in.value)
-  AP_SYS=parseInt(asys_in.value)
-  AP_DIA=parseInt(adia_in.value)
-  SPO2=parseInt(spo2_in.value)
-  hr.innerHTML="HR "+HR
-  nibp.innerHTML="NIBP "+NIBP_SYS+"/"+NIBP_DIA
-  aPress.innerHTML="A "+AP_SYS+"/"+AP_DIA
-  spo2.innerHTML="SpO₂ "+SPO2
-  nextBeatTime=audioCtx.currentTime*1000
+    HR=parseInt(hr_in.value)
+    NIBP_SYS=parseInt(sys_in.value)
+    NIBP_DIA=parseInt(dia_in.value)
+    AP_SYS=parseInt(asys_in.value)
+    AP_DIA=parseInt(adia_in.value)
+    SPO2=parseInt(spo2_in.value)
+    document.getElementById("hr").innerText="HR "+HR
+    document.getElementById("nibp").innerText="NIBP "+NIBP_SYS+"/"+NIBP_DIA
+    document.getElementById("aPress").innerText="A "+AP_SYS+"/"+AP_DIA
+    document.getElementById("spo2").innerText="SpO₂ "+SPO2
+    if(audioCtx) nextBeatTime=audioCtx.currentTime*1000
 }
-
-function start(){
-  audioCtx=new(window.AudioContext||window.webkitAudioContext)()
-  audioCtx.resume().then(()=>{ nextBeatTime=audioCtx.currentTime*1000 })
-  loop()
-}
-
 </script>
-
 </body>
 </html>
 ```
