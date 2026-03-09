@@ -62,24 +62,29 @@ let ap=apCanvas.getContext("2d");
 
 let HR=70, NIBP_SYS=120, NIBP_DIA=70, AP_SYS=120, AP_DIA=70, SPO2=98;
 let x=0, speed=2;
+
 let audioCtx=null;
+let osc=null, gain=null;
 let nextBeatTime=0;
 
+// OSCILLATORを常時動かして、R波でビープ
 function startAudio(){
     audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    osc=audioCtx.createOscillator();
+    gain=audioCtx.createGain();
+    osc.type="square";
+    osc.frequency.value=900;
+    gain.gain.value=0; // 普段は0
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
 }
 
 function beep(){
     if(!audioCtx) return;
-    let osc=audioCtx.createOscillator();
-    let gain=audioCtx.createGain();
-    osc.type="square";
-    osc.frequency.value=900;
-    gain.gain.value=0.1; // 音量
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.2); // 0.2秒音を鳴らす
+    gain.gain.cancelScheduledValues(audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);      // 瞬間的に音量上げる
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + 0.15); // 0.15秒後に戻す
 }
 
 function drawECG(){
