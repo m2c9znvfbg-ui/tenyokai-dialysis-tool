@@ -63,7 +63,7 @@ let x=0, speed=2;
 let audioCtx=null;
 let nextBeatTime=0;
 
-// 音を鳴らす関数（Oscillatorを毎回生成）
+// 音を鳴らす関数（Oscillator）
 function beep(){
     if(!audioCtx) return;
     let osc=audioCtx.createOscillator();
@@ -74,12 +74,12 @@ function beep(){
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.15); // 0.15秒鳴らす
+    osc.stop(audioCtx.currentTime + 0.15);
 }
 
-// AudioContextはボタンクリックで生成
+// AudioContextはユーザー操作で生成
 function startAudio(){
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
 }
 
 // ECG描画
@@ -121,17 +121,19 @@ function drawAP(){
 
 // メインループ
 function loop(){
-    x+=speed;
+    x += speed;
     drawECG();
     drawAP();
+
     if(audioCtx){
-        let now=audioCtx.currentTime*1000;
-        let interval=60000/HR;
-        if(now>=nextBeatTime){
-            beep(); // R波で音
-            nextBeatTime=now+interval;
+        let now = audioCtx.currentTime;       // 秒単位
+        let interval = 60 / HR;               // HRに合わせた1拍の秒数
+        if(now >= nextBeatTime){
+            beep();                            // R波で音
+            nextBeatTime = now + interval;
         }
     }
+
     requestAnimationFrame(loop);
 }
 
@@ -147,13 +149,14 @@ function applyVitals(){
     document.getElementById("nibp").innerText="NIBP "+NIBP_SYS+"/"+NIBP_DIA;
     document.getElementById("aPress").innerText="A "+AP_SYS+"/"+AP_DIA;
     document.getElementById("spo2").innerText="SpO₂ "+SPO2;
-    if(audioCtx) nextBeatTime=audioCtx.currentTime*1000;
+    if(audioCtx) nextBeatTime = audioCtx.currentTime; // 音タイミングをリセット
 }
 
 // STARTボタンでAudioContext作成＋ループ開始
 document.getElementById("startBtn").addEventListener("click", ()=>{
     if(!audioCtx) startAudio();
-    nextBeatTime=audioCtx.currentTime*1000;
+    beep(); // クリック直後に音を鳴らす（ブラウザ制限対応）
+    nextBeatTime = audioCtx.currentTime;
     loop();
 });
 </script>
