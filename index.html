@@ -22,36 +22,34 @@ button{margin:3px;background:#002200;color:#00ff66;border:1px solid #00ff66;padd
 <h2 style="text-align:center;color:white;">カテ室ポリグラフシミュレーター</h2>
 
 <div id="container">
+  <div id="left">
+    <canvas id="ecg" width="900" height="220"></canvas>
+    <canvas id="ap" width="900" height="180"></canvas>
+  </div>
 
-<div id="left">
-<canvas id="ecg" width="900" height="220"></canvas>
-<canvas id="ap" width="900" height="180"></canvas>
-</div>
+  <div id="right">
+    <div id="hr">HR 70</div>
+    <div id="nibp">NIBP 120/70</div>
+    <div id="aPress">A 120/70</div>
+    <div id="spo2">SpO₂ 98</div>
 
-<div id="right">
-<div id="hr">HR 70</div>
-<div id="nibp">NIBP 120/70</div>
-<div id="aPress">A 120/70</div>
-<div id="spo2">SpO₂ 98</div>
+    <hr>
 
-<hr>
+    HR<input id="hr_in" value="70"><br>
+    NIBP SYS<input id="sys_in" value="120"> DIA<input id="dia_in" value="70"><br>
+    A SYS<input id="asys_in" value="120"> DIA<input id="adia_in" value="70"><br>
+    SpO₂<input id="spo2_in" value="98"><br>
+    <button onclick="applyVitals()">反映</button>
 
-HR<input id="hr_in" value="70"><br>
-NIBP SYS<input id="sys_in" value="120"> DIA<input id="dia_in" value="70"><br>
-A SYS<input id="asys_in" value="120"> DIA<input id="adia_in" value="70"><br>
-SpO₂<input id="spo2_in" value="98"><br>
-<button onclick="applyVitals()">反映</button>
+    <hr>
+    紙送り速度:
+    <button onclick="speed=1">遅い</button>
+    <button onclick="speed=2">普通</button>
+    <button onclick="speed=4">速い</button>
 
-<hr>
-紙送り速度:
-<button onclick="speed=1">遅い</button>
-<button onclick="speed=2">普通</button>
-<button onclick="speed=4">速い</button>
-
-<hr>
-<button id="startBtn">START</button>
-</div>
-
+    <hr>
+    <button id="startBtn">START</button>
+  </div>
 </div>
 
 <script>
@@ -62,31 +60,29 @@ let ap=apCanvas.getContext("2d");
 
 let HR=70, NIBP_SYS=120, NIBP_DIA=70, AP_SYS=120, AP_DIA=70, SPO2=98;
 let x=0, speed=2;
-
 let audioCtx=null;
-let osc=null, gain=null;
 let nextBeatTime=0;
 
-// OSCILLATORを常時動かして、R波でビープ
-function startAudio(){
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    osc=audioCtx.createOscillator();
-    gain=audioCtx.createGain();
+// 音を鳴らす関数（Oscillatorを毎回生成）
+function beep(){
+    if(!audioCtx) return;
+    let osc=audioCtx.createOscillator();
+    let gain=audioCtx.createGain();
     osc.type="square";
     osc.frequency.value=900;
-    gain.gain.value=0; // 普段は0
+    gain.gain.value=0.1;
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.start();
+    osc.stop(audioCtx.currentTime + 0.15); // 0.15秒鳴らす
 }
 
-function beep(){
-    if(!audioCtx) return;
-    gain.gain.cancelScheduledValues(audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);      // 瞬間的に音量上げる
-    gain.gain.setValueAtTime(0, audioCtx.currentTime + 0.15); // 0.15秒後に戻す
+// AudioContextはボタンクリックで生成
+function startAudio(){
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
 }
 
+// ECG描画
 function drawECG(){
     ecg.fillStyle="black";
     ecg.fillRect(0,0,900,220);
@@ -106,6 +102,7 @@ function drawECG(){
     ecg.stroke();
 }
 
+// A圧描画
 function drawAP(){
     ap.fillStyle="black";
     ap.fillRect(0,0,900,180);
@@ -122,6 +119,7 @@ function drawAP(){
     ap.stroke();
 }
 
+// メインループ
 function loop(){
     x+=speed;
     drawECG();
@@ -130,13 +128,14 @@ function loop(){
         let now=audioCtx.currentTime*1000;
         let interval=60000/HR;
         if(now>=nextBeatTime){
-            beep();
+            beep(); // R波で音
             nextBeatTime=now+interval;
         }
     }
     requestAnimationFrame(loop);
 }
 
+// バイタル反映
 function applyVitals(){
     HR=parseInt(document.getElementById("hr_in").value);
     NIBP_SYS=parseInt(document.getElementById("sys_in").value);
@@ -151,6 +150,7 @@ function applyVitals(){
     if(audioCtx) nextBeatTime=audioCtx.currentTime*1000;
 }
 
+// STARTボタンでAudioContext作成＋ループ開始
 document.getElementById("startBtn").addEventListener("click", ()=>{
     if(!audioCtx) startAudio();
     nextBeatTime=audioCtx.currentTime*1000;
