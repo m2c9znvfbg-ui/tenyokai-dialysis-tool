@@ -3,36 +3,35 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>カテ室 AIシミュレーター</title>
+<title>カテ室AIモニター</title>
 
 <style>
+
 body{
 background:black;
 color:#00ff66;
 font-family:monospace;
-text-align:center;
+display:flex;
+}
+
+#wave{
+flex:3;
+}
+
+#panel{
+flex:1;
+padding:20px;
 }
 
 canvas{
 background:#001000;
-border:2px solid #008844;
+border:2px solid #006600;
 margin:5px;
 }
 
-.monitor{
-font-size:24px;
-margin:10px;
-}
-
-input{
-width:60px;
-font-size:16px;
-}
-
-button{
-font-size:16px;
-margin:4px;
-padding:6px 12px;
+.big{
+font-size:28px;
+margin:15px;
 }
 
 .alarm{
@@ -40,39 +39,46 @@ color:red;
 font-weight:bold;
 }
 
+button{
+font-size:16px;
+margin:5px;
+}
+
 </style>
 </head>
 
 <body>
 
-<h2>カテ室 AIシミュレーター</h2>
+<div id="wave">
 
-<div class="monitor" id="numbers"></div>
+<canvas id="ecg" width="800" height="120"></canvas>
+<canvas id="art" width="800" height="120"></canvas>
+<canvas id="resp" width="800" height="120"></canvas>
+<canvas id="spo2wave" width="800" height="120"></canvas>
 
-<canvas id="ecg" width="700" height="120"></canvas>
-<canvas id="art" width="700" height="120"></canvas>
-<canvas id="resp" width="700" height="120"></canvas>
-<canvas id="spo2" width="700" height="120"></canvas>
+</div>
+
+<div id="panel">
+
+<div class="big">HR<br><span id="hrv">80</span></div>
+
+<div class="big">AP<br><span id="bpv">120/70</span></div>
+
+<div class="big">SpO2<br><span id="spv">98</span></div>
+
+<div class="big">ECMO Flow<br><span id="ef">4500</span></div>
+
+<div class="big">Vent Flow<br><span id="vf">3.5</span></div>
+
+<div id="alarm"></div>
 
 <br>
 
-HR<input id="hr" type="number" value="80">
-SYS<input id="sys" type="number" value="120">
-DIA<input id="dia" type="number" value="70">
-SpO2<input id="spo" type="number" value="98">
-
-<button onclick="apply()">反映</button>
-
-<br><br>
-
 <button onclick="start()">開始</button>
-
 <button onclick="toggleVent()">呼吸器</button>
 <button onclick="toggleECMO()">ECMO</button>
 
-<br>
-
-<div id="alarm"></div>
+</div>
 
 <script>
 
@@ -81,11 +87,11 @@ let SYS=120
 let DIA=70
 let SPO2=98
 
+let ecmoFlow=4500
+let ventFlow=3.5
+
 let ventOn=false
 let ecmoOn=false
-
-let ventFlow=3.5
-let ecmoFlow=4500
 
 let x=0
 
@@ -97,9 +103,7 @@ if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)()
 
 let osc=audioCtx.createOscillator()
 
-osc.type="square"
-osc.frequency.setValueAtTime(freq,audioCtx.currentTime)
-
+osc.frequency.value=freq
 osc.connect(audioCtx.destination)
 
 osc.start()
@@ -116,23 +120,17 @@ setTimeout(monitorSound,60000/HR)
 
 }
 
-function apply(){
+function updatePanel(){
 
-HR=parseInt(hr.value)
-SYS=parseInt(sys.value)
-DIA=parseInt(dia.value)
-SPO2=parseInt(spo.value)
+hrv.innerText=Math.round(HR)
 
-}
+bpv.innerText=Math.round(SYS)+"/"+Math.round(DIA)
 
-function updateNumbers(){
+spv.innerText=Math.round(SPO2)
 
-numbers.innerHTML=
-"HR "+HR+
-" | BP "+SYS+"/"+DIA+
-" | SpO2 "+SPO2+
-" | VentFlow "+ventFlow.toFixed(1)+"L"+
-" | ECMO "+ecmoFlow+"ml"
+ef.innerText=Math.round(ecmoFlow)
+
+vf.innerText=ventFlow.toFixed(1)
 
 }
 
@@ -140,17 +138,19 @@ function worsen(){
 
 HR+=Math.random()*2
 
-SYS-=Math.random()*3
+SYS-=Math.random()*2
 
-SPO2-=Math.random()*0.5
+SPO2-=Math.random()*0.4
 
-ventFlow-=Math.random()*0.1
+ecmoFlow-=Math.random()*40
 
-ecmoFlow-=Math.random()*50
+ventFlow-=Math.random()*0.05
+
+alarm.innerHTML=""
 
 if(SPO2<90){
 
-alarm.innerHTML="<span class='alarm'>SpO2 LOW</span>"
+alarm.innerHTML+="<div class='alarm'>SpO2 LOW</div>"
 
 beep(600,0.2)
 
@@ -158,7 +158,7 @@ beep(600,0.2)
 
 if(ventFlow<2){
 
-alarm.innerHTML+="<br><span class='alarm'>VENT FLOW LOW</span>"
+alarm.innerHTML+="<div class='alarm'>VENT FLOW LOW</div>"
 
 beep(700,0.2)
 
@@ -166,13 +166,13 @@ beep(700,0.2)
 
 if(ecmoFlow<3500){
 
-alarm.innerHTML+="<br><span class='alarm'>ECMO FLOW LOW</span>"
+alarm.innerHTML+="<div class='alarm'>ECMO FLOW LOW</div>"
 
-beep(500,0.3)
+beep(500,0.2)
 
 }
 
-updateNumbers()
+updatePanel()
 
 }
 
@@ -201,21 +201,37 @@ animate()
 let ecg=document.getElementById("ecg").getContext("2d")
 let art=document.getElementById("art").getContext("2d")
 let resp=document.getElementById("resp").getContext("2d")
-let spo=document.getElementById("spo2").getContext("2d")
+let spo=document.getElementById("spo2wave").getContext("2d")
+
+function ecgWave(t){
+
+let p=Math.exp(-Math.pow((t-0.2)/0.03,2))*3
+let q=-Math.exp(-Math.pow((t-0.4)/0.01,2))*6
+let r=Math.exp(-Math.pow((t-0.42)/0.008,2))*25
+let s=-Math.exp(-Math.pow((t-0.44)/0.01,2))*8
+let tw=Math.exp(-Math.pow((t-0.7)/0.05,2))*6
+
+return p+q+r+s+tw
+
+}
 
 function drawECG(){
 
 ecg.fillStyle="#001000"
 
-ecg.fillRect(0,0,700,120)
+ecg.fillRect(0,0,800,120)
 
 ecg.strokeStyle="#00ff66"
 
 ecg.beginPath()
 
-for(let i=0;i<700;i++){
+let beat=60000/HR
 
-let y=60+Math.sin((i+x)/15)*20
+for(let i=0;i<800;i++){
+
+let t=((i+x)%beat)/beat
+
+let y=60-ecgWave(t)*2
 
 ecg.lineTo(i,y)
 
@@ -229,15 +245,15 @@ function drawART(){
 
 art.fillStyle="#001000"
 
-art.fillRect(0,0,700,120)
+art.fillRect(0,0,800,120)
 
 art.strokeStyle="red"
 
 art.beginPath()
 
-for(let i=0;i<700;i++){
+for(let i=0;i<800;i++){
 
-let y=80+Math.sin((i+x)/20)*30*(SYS/120)
+let y=70+Math.sin((i+x)/20)*30*(SYS/120)
 
 art.lineTo(i,y)
 
@@ -251,13 +267,13 @@ function drawRESP(){
 
 resp.fillStyle="#001000"
 
-resp.fillRect(0,0,700,120)
+resp.fillRect(0,0,800,120)
 
 resp.strokeStyle="yellow"
 
 resp.beginPath()
 
-for(let i=0;i<700;i++){
+for(let i=0;i<800;i++){
 
 let y=60+Math.sin((i+x)/40)*20
 
@@ -273,13 +289,13 @@ function drawSPO(){
 
 spo.fillStyle="#001000"
 
-spo.fillRect(0,0,700,120)
+spo.fillRect(0,0,800,120)
 
 spo.strokeStyle="cyan"
 
 spo.beginPath()
 
-for(let i=0;i<700;i++){
+for(let i=0;i<800;i++){
 
 let y=80+Math.sin((i+x)/18)*20
 
@@ -304,7 +320,7 @@ requestAnimationFrame(animate)
 
 }
 
-updateNumbers()
+updatePanel()
 
 </script>
 
