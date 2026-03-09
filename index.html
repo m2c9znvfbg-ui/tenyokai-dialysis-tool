@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Polygraph Simulator</title>
+<title>Polygraph Monitor</title>
 
 <style>
 
@@ -16,8 +16,8 @@ font-family:monospace;
 display:flex;
 }
 
-#waveArea{
-width:900px;
+#waves{
+width:950px;
 }
 
 canvas{
@@ -62,8 +62,7 @@ button{
 background:#002200;
 color:#00ff66;
 border:1px solid #00ff66;
-margin-top:6px;
-margin-right:4px;
+margin:4px;
 }
 
 </style>
@@ -73,10 +72,16 @@ margin-right:4px;
 
 <div id="container">
 
-<div id="waveArea">
+<div id="waves">
 
-<canvas id="ecg" width="900" height="250"></canvas>
-<canvas id="art" width="900" height="200"></canvas>
+<canvas id="lead1" width="950" height="80"></canvas>
+<canvas id="lead2" width="950" height="80"></canvas>
+<canvas id="lead3" width="950" height="80"></canvas>
+<canvas id="avr" width="950" height="80"></canvas>
+<canvas id="avl" width="950" height="80"></canvas>
+<canvas id="avf" width="950" height="80"></canvas>
+
+<canvas id="art" width="950" height="200"></canvas>
 
 </div>
 
@@ -121,9 +126,9 @@ SpO₂
 
 紙送り速度<br>
 
-<button onclick="setSpeed(0.8)">25 mm/s</button>
-<button onclick="setSpeed(1.6)">50 mm/s</button>
-<button onclick="setSpeed(3.2)">100 mm/s</button>
+<button onclick="speed=0.4">遅い</button>
+<button onclick="speed=0.8">25mm/s</button>
+<button onclick="speed=1.6">50mm/s</button>
 
 <hr>
 
@@ -142,12 +147,21 @@ let aSys=120
 let aDia=70
 let SPO2=98
 
-let speed=1.6
-
 let x=0
+let speed=0.4
 let running=false
 
-const ecg=document.getElementById("ecg").getContext("2d")
+let beat=false
+
+const leads=[
+document.getElementById("lead1").getContext("2d"),
+document.getElementById("lead2").getContext("2d"),
+document.getElementById("lead3").getContext("2d"),
+document.getElementById("avr").getContext("2d"),
+document.getElementById("avl").getContext("2d"),
+document.getElementById("avf").getContext("2d")
+]
+
 const art=document.getElementById("art").getContext("2d")
 
 let audioCtx
@@ -166,50 +180,72 @@ osc.connect(gain)
 gain.connect(audioCtx.destination)
 
 osc.start()
-setTimeout(()=>osc.stop(),40)
+osc.stop(audioCtx.currentTime+0.05)
+
+}
+
+function ecgShape(t){
+
+let base=Math.sin(t*HR/60*6)
+
+let y=0
+
+if(base>0.98){
+
+y=-40
+
+if(!beat){
+beep()
+beat=true
+}
+
+}else{
+beat=false
+}
+
+y+=Math.sin(t*2)*5
+
+return y
 
 }
 
 function drawECG(){
 
-ecg.fillStyle="black"
-ecg.fillRect(0,0,900,250)
+for(let l=0;l<leads.length;l++){
 
-ecg.strokeStyle="#00ff00"
-ecg.beginPath()
+let ctx=leads[l]
 
-for(let i=0;i<900;i++){
+ctx.fillStyle="black"
+ctx.fillRect(0,0,950,80)
+
+ctx.strokeStyle="#00ff00"
+ctx.beginPath()
+
+for(let i=0;i<950;i++){
 
 let t=(i+x)/40
 
-let y=120
+let y=40+ecgShape(t)*(1+(l*0.15))
 
-if(Math.sin(t*HR/60*6)>0.98){
-
-y=60
-beep()
+ctx.lineTo(i,y)
 
 }
 
-y+=Math.sin(t*2)*3
-
-ecg.lineTo(i,y)
+ctx.stroke()
 
 }
-
-ecg.stroke()
 
 }
 
 function drawART(){
 
 art.fillStyle="black"
-art.fillRect(0,0,900,200)
+art.fillRect(0,0,950,200)
 
 art.strokeStyle="red"
 art.beginPath()
 
-for(let i=0;i<900;i++){
+for(let i=0;i<950;i++){
 
 let t=(i+x)/40
 
@@ -244,6 +280,8 @@ function start(){
 
 audioCtx=new(window.AudioContext||window.webkitAudioContext)()
 
+audioCtx.resume()
+
 running=true
 loop()
 
@@ -263,19 +301,13 @@ SPO2=parseFloat(spo2In.value)
 
 hrDisplay.innerText=HR
 
-nSys.innerText=nSys
-nDia.innerText=nDia
+document.getElementById("nSys").innerText=nSys
+document.getElementById("nDia").innerText=nDia
 
-aSys.innerText=aSys
-aDia.innerText=aDia
+document.getElementById("aSys").innerText=aSys
+document.getElementById("aDia").innerText=aDia
 
-spo2.innerText=SPO2
-
-}
-
-function setSpeed(v){
-
-speed=v
+document.getElementById("spo2").innerText=SPO2
 
 }
 
