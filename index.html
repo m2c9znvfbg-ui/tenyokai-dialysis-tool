@@ -3,12 +3,13 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Polygraph Monitor</title>
+<title>Polygraph Simulator</title>
 
 <style>
 
 body{
 background:black;
+color:white;
 font-family:monospace;
 }
 
@@ -16,53 +17,46 @@ font-family:monospace;
 display:flex;
 }
 
-#waves{
-width:950px;
+#left{
+width:900px;
 }
 
 canvas{
 background:black;
-border-bottom:1px solid #003300;
+display:block;
+border:1px solid #222;
 }
 
-#panel{
-padding-left:20px;
+#right{
+margin-left:30px;
 }
 
-.hr{
-font-size:90px;
-color:#00ff66;
-font-weight:bold;
+#hr{
+font-size:80px;
+color:#00ff00;
 }
 
-.nibp{
+#nibp{
+font-size:35px;
 color:white;
-font-size:28px;
 }
 
-.art{
+#aPress{
+font-size:35px;
 color:red;
-font-size:28px;
 }
 
-.spo2{
+#spo2{
+font-size:35px;
 color:yellow;
-font-size:28px;
 }
 
 input{
-width:60px;
-background:black;
-color:#00ff66;
-border:1px solid #00ff66;
-margin:2px;
+width:70px;
 }
 
 button{
-background:#002200;
-color:#00ff66;
-border:1px solid #00ff66;
-margin:4px;
+margin-top:5px;
 }
 
 </style>
@@ -70,67 +64,46 @@ margin:4px;
 
 <body>
 
+<h2>Polygraph Monitor Simulator</h2>
+
 <div id="container">
 
-<div id="waves">
+<div id="left">
 
-<canvas id="lead1" width="950" height="80"></canvas>
-<canvas id="lead2" width="950" height="80"></canvas>
-<canvas id="lead3" width="950" height="80"></canvas>
-<canvas id="avr" width="950" height="80"></canvas>
-<canvas id="avl" width="950" height="80"></canvas>
-<canvas id="avf" width="950" height="80"></canvas>
-
-<canvas id="art" width="950" height="200"></canvas>
+<canvas id="ecg" width="900" height="220"></canvas>
+<canvas id="ap" width="900" height="180"></canvas>
 
 </div>
 
-<div id="panel">
+<div id="right">
 
-<div class="hr" id="hrDisplay">80</div>
-HR
+<div id="hr">HR 70</div>
+<div id="nibp">NIBP 120/70</div>
+<div id="aPress">A 120/70</div>
+<div id="spo2">SpO₂ 98</div>
 
-<div class="nibp">
-NIBP<br>
-<span id="nSys">120</span>/<span id="nDia">70</span>
-</div>
+<br>
 
-<div class="art">
-A圧<br>
-<span id="aSys">120</span>/<span id="aDia">70</span>
-</div>
+HR <input id="hr_in" value="70"><br>
+SYS <input id="sys_in" value="120">
+DIA <input id="dia_in" value="70"><br>
 
-<div class="spo2">
-SpO₂<br>
-<span id="spo2">98</span>
-</div>
+A SYS <input id="asys_in" value="120">
+A DIA <input id="adia_in" value="70"><br>
 
-<hr>
+SpO₂ <input id="spo2_in" value="98"><br>
 
-HR <input id="hrIn" value="80"><br>
+<button onclick="applyVitals()">反映</button>
 
-NIBP
-<input id="nSysIn" value="120"> /
-<input id="nDiaIn" value="70"><br>
+<br><br>
 
-A圧
-<input id="aSysIn" value="120"> /
-<input id="aDiaIn" value="70"><br>
+紙送り速度
 
-SpO₂
-<input id="spo2In" value="98"><br>
+<button onclick="speed=2">遅い</button>
+<button onclick="speed=4">普通</button>
+<button onclick="speed=7">速い</button>
 
-<button onclick="apply()">反映</button>
-
-<hr>
-
-紙送り速度<br>
-
-<button onclick="speed=0.4">遅い</button>
-<button onclick="speed=0.8">25mm/s</button>
-<button onclick="speed=1.6">50mm/s</button>
-
-<hr>
+<br><br>
 
 <button onclick="start()">START</button>
 
@@ -140,41 +113,34 @@ SpO₂
 
 <script>
 
-let HR=80
-let nSys=120
-let nDia=70
-let aSys=120
-let aDia=70
+let ecgCanvas=document.getElementById("ecg")
+let ecg=ecgCanvas.getContext("2d")
+
+let apCanvas=document.getElementById("ap")
+let ap=apCanvas.getContext("2d")
+
+let HR=70
+let NIBP_SYS=120
+let NIBP_DIA=70
+let AP_SYS=120
+let AP_DIA=70
 let SPO2=98
 
 let x=0
-let speed=0.4
-let running=false
+let speed=2
 
-let beat=false
-
-const leads=[
-document.getElementById("lead1").getContext("2d"),
-document.getElementById("lead2").getContext("2d"),
-document.getElementById("lead3").getContext("2d"),
-document.getElementById("avr").getContext("2d"),
-document.getElementById("avl").getContext("2d"),
-document.getElementById("avf").getContext("2d")
-]
-
-const art=document.getElementById("art").getContext("2d")
-
-let audioCtx
+let audioCtx=null
+let lastBeat=0
 
 function beep(){
 
 let osc=audioCtx.createOscillator()
 let gain=audioCtx.createGain()
 
-osc.frequency.value=1000
 osc.type="square"
+osc.frequency.value=900
 
-gain.gain.value=0.05
+gain.gain.value=0.06
 
 osc.connect(gain)
 gain.connect(audioCtx.destination)
@@ -184,130 +150,109 @@ osc.stop(audioCtx.currentTime+0.05)
 
 }
 
-function ecgShape(t){
-
-let base=Math.sin(t*HR/60*6)
-
-let y=0
-
-if(base>0.98){
-
-y=-40
-
-if(!beat){
-beep()
-beat=true
-}
-
-}else{
-beat=false
-}
-
-y+=Math.sin(t*2)*5
-
-return y
-
-}
-
 function drawECG(){
 
-for(let l=0;l<leads.length;l++){
+ecg.fillStyle="black"
+ecg.fillRect(0,0,900,220)
 
-let ctx=leads[l]
+ecg.strokeStyle="#00ff00"
+ecg.lineWidth=2
+ecg.beginPath()
 
-ctx.fillStyle="black"
-ctx.fillRect(0,0,950,80)
+for(let i=0;i<900;i++){
 
-ctx.strokeStyle="#00ff00"
-ctx.beginPath()
+let t=(i+x)/120
 
-for(let i=0;i<950;i++){
+let phase=(t*HR/60)%1
 
-let t=(i+x)/40
+let y=120
 
-let y=40+ecgShape(t)*(1+(l*0.15))
+if(phase<0.02) y=120
+else if(phase<0.04) y=70
+else if(phase<0.06) y=150
+else if(phase<0.08) y=110
+else y=120+Math.sin(t*5)*3
 
-ctx.lineTo(i,y)
-
-}
-
-ctx.stroke()
-
-}
-
-}
-
-function drawART(){
-
-art.fillStyle="black"
-art.fillRect(0,0,950,200)
-
-art.strokeStyle="red"
-art.beginPath()
-
-for(let i=0;i<950;i++){
-
-let t=(i+x)/40
-
-let pressure=
-aDia+
-(Math.sin(t*HR/60*6)+1)/2*(aSys-aDia)
-
-let y=180-pressure
-
-art.lineTo(i,y)
+ecg.lineTo(i,y)
 
 }
 
-art.stroke()
+ecg.stroke()
+
+}
+
+function drawAP(){
+
+ap.fillStyle="black"
+ap.fillRect(0,0,900,180)
+
+ap.strokeStyle="red"
+ap.lineWidth=2
+ap.beginPath()
+
+for(let i=0;i<900;i++){
+
+let t=(i+x)/120
+let phase=(t*HR/60)%1
+
+let pressure=AP_DIA+(AP_SYS-AP_DIA)*(Math.sin(phase*Math.PI))
+
+let y=160-pressure*0.5
+
+ap.lineTo(i,y)
+
+}
+
+ap.stroke()
 
 }
 
 function loop(){
 
-if(!running)return
-
-drawECG()
-drawART()
-
 x+=speed
 
+drawECG()
+drawAP()
+
+let now=performance.now()
+
+let interval=60000/HR
+
+if(now-lastBeat>interval){
+
+beep()
+lastBeat=now
+
+}
+
 requestAnimationFrame(loop)
+
+}
+
+function applyVitals(){
+
+HR=parseInt(hr_in.value)
+NIBP_SYS=parseInt(sys_in.value)
+NIBP_DIA=parseInt(dia_in.value)
+
+AP_SYS=parseInt(asys_in.value)
+AP_DIA=parseInt(adia_in.value)
+
+SPO2=parseInt(spo2_in.value)
+
+hr.innerHTML="HR "+HR
+nibp.innerHTML="NIBP "+NIBP_SYS+"/"+NIBP_DIA
+aPress.innerHTML="A "+AP_SYS+"/"+AP_DIA
+spo2.innerHTML="SpO₂ "+SPO2
 
 }
 
 function start(){
 
 audioCtx=new(window.AudioContext||window.webkitAudioContext)()
-
 audioCtx.resume()
 
-running=true
 loop()
-
-}
-
-function apply(){
-
-HR=parseFloat(hrIn.value)
-
-nSys=parseFloat(nSysIn.value)
-nDia=parseFloat(nDiaIn.value)
-
-aSys=parseFloat(aSysIn.value)
-aDia=parseFloat(aDiaIn.value)
-
-SPO2=parseFloat(spo2In.value)
-
-hrDisplay.innerText=HR
-
-document.getElementById("nSys").innerText=nSys
-document.getElementById("nDia").innerText=nDia
-
-document.getElementById("aSys").innerText=aSys
-document.getElementById("aDia").innerText=aDia
-
-document.getElementById("spo2").innerText=SPO2
 
 }
 
